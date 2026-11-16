@@ -1,0 +1,146 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect BENY wallbox",
+        "description": "Recommended gateway settings: TCP Server, Modbus TCP to RTU, TCP port 502; RS485: 4800 baud, 8 data bits, no parity, 1 stop bit (8N1). Set these on the gateway itself; this integration does not change them. Disable Plug & Play on the charger for START/STOP control. Setup checks the connection by reading only.",
+        "data": {
+          "name": "Device name",
+          "host": "Gateway IP address or hostname",
+          "port": "Gateway TCP port",
+          "unit_id": "Charger Modbus address",
+          "transport": "Gateway mode"
+        },
+        "data_description": {
+          "name": "A name for this charger in Home Assistant.",
+          "host": "Enter the IP address or hostname shown by your gateway or router. DHCP with an address reservation is recommended. Do not include http:// or a port.",
+          "port": "Recommended: 502 for Modbus TCP. Enter the gateway's actual TCP server port; port 80 is normally its web interface.",
+          "unit_id": "BENY default: 1. Use the charger address if it was changed. This is the RS485 device address, not the gateway IP.",
+          "transport": "Choose Modbus TCP for a gateway set to Modbus TCP to RTU. Choose Modbus RTU over TCP only for transparent forwarding of RTU frames with CRC."
+        }
+      },
+      "limits": {
+        "title": "Current ceiling and controls",
+        "description": "The default current ceiling is 6 A. Increase only to the verified installation limit, at most 32 A. This ceiling limits commands from this integration; it does not change the permanent charger limit or app control. Setup does not start charging.",
+        "data": {
+          "max_current": "Integration current ceiling (A)",
+          "control_enabled": "Enable manual control"
+        },
+        "data_description": {
+          "max_current": "Default: 6 A. Set a verified limit for the installation, at most 32 A. This restricts commands from this integration; it does not provide dynamic load balancing.",
+          "control_enabled": "Enable the charging switch and current setting. Disable for monitoring only. Enabling this option does not start charging."
+        }
+      },
+      "reconfigure": {
+        "title": "Change connection",
+        "description": "Recommended gateway settings: TCP Server, Modbus TCP to RTU, TCP port 502; RS485: 4800 baud, 8 data bits, no parity, 1 stop bit (8N1). Set these on the gateway itself; this integration does not change them. Disable Plug & Play on the charger for START/STOP control. Setup checks the connection by reading only.",
+        "data": {
+          "name": "Device name",
+          "host": "Gateway IP address or hostname",
+          "port": "Gateway TCP port",
+          "unit_id": "Charger Modbus address",
+          "transport": "Gateway mode"
+        },
+        "data_description": {
+          "name": "A name for this charger in Home Assistant.",
+          "host": "Enter the IP address or hostname shown by your gateway or router. DHCP with an address reservation is recommended. Do not include http:// or a port.",
+          "port": "Recommended: 502 for Modbus TCP. Enter the gateway's actual TCP server port; port 80 is normally its web interface.",
+          "unit_id": "BENY default: 1. Use the charger address if it was changed. This is the RS485 device address, not the gateway IP.",
+          "transport": "Choose Modbus TCP for a gateway set to Modbus TCP to RTU. Choose Modbus RTU over TCP only for transparent forwarding of RTU frames with CRC."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No valid charger response. Check host, port, mode, unit ID and gateway availability.",
+      "unsupported_device": "This version supports single-connector BENY Smart BCP-…-L chargers.",
+      "already_configured": "This charger is already configured."
+    },
+    "abort": {
+      "already_configured": "This charger is already configured.",
+      "reconfigure_successful": "Connection updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Control settings",
+        "description": "The default current ceiling is 6 A. Increase only to the verified installation limit, at most 32 A. This ceiling limits commands from this integration; it does not change the permanent charger limit or app control. Setup does not start charging.",
+        "data": {
+          "max_current": "Integration current ceiling (A)",
+          "control_enabled": "Enable manual control"
+        },
+        "data_description": {
+          "max_current": "Default: 6 A. Set a verified limit for the installation, at most 32 A. This restricts commands from this integration; it does not provide dynamic load balancing.",
+          "control_enabled": "Enable the charging switch and current setting. Disable for monitoring only. Enabling this option does not start charging."
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "charging_enabled": {
+        "name": "Allow charging"
+      }
+    },
+    "number": {
+      "current_limit": {
+        "name": "Charging current"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Charging"
+      },
+      "connected": {
+        "name": "Vehicle connected"
+      },
+      "fault": {
+        "name": "Fault"
+      }
+    },
+    "sensor": {
+      "session_energy": {
+        "name": "Session energy"
+      },
+      "allowed_current": {
+        "name": "Current offered to vehicle"
+      },
+      "permanent_current": {
+        "name": "Permanent current limit"
+      },
+      "connector_status": {
+        "name": "Connector status",
+        "state": {
+          "disconnected": "Disconnected",
+          "connected_idle": "Connected, idle",
+          "charging": "Charging",
+          "waiting": "Waiting"
+        }
+      },
+      "watchdog_timeout": {
+        "name": "Modbus timeout (read only)"
+      },
+      "last_communication": {
+        "name": "Last successful communication"
+      },
+      "voltage_l1": {
+        "name": "Voltage L1"
+      },
+      "current_l1": {
+        "name": "Current L1"
+      },
+      "voltage_l2": {
+        "name": "Voltage L2"
+      },
+      "current_l2": {
+        "name": "Current L2"
+      },
+      "voltage_l3": {
+        "name": "Voltage L3"
+      },
+      "current_l3": {
+        "name": "Current L3"
+      }
+    }
+  }
+}

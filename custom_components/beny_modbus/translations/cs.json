@@ -1,0 +1,146 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Připojení wallboxu BENY",
+        "description": "Doporučené nastavení převodníku: TCP Server, Modbus TCP to RTU, TCP port 502; RS485: 4800 Bd, 8 datových bitů, bez parity, 1 stop bit (8N1). Tyto hodnoty nastavte přímo v převodníku; integrace je nemění. Pro ovládání START/STOP vypněte Plug & Play ve wallboxu. Při přidání se spojení ověřuje pouze čtením.",
+        "data": {
+          "name": "Název zařízení",
+          "host": "IP adresa nebo název převodníku",
+          "port": "TCP port převodníku",
+          "unit_id": "Modbus adresa wallboxu",
+          "transport": "Režim převodníku"
+        },
+        "data_description": {
+          "name": "Název tohoto wallboxu v Home Assistantu.",
+          "host": "Zadejte IP adresu nebo název z nastavení převodníku či routeru. Doporučujeme DHCP s rezervací adresy. Nezadávejte http:// ani port.",
+          "port": "Doporučeno: 502 pro Modbus TCP. Zadejte skutečný port TCP serveru převodníku; port 80 obvykle slouží jeho webovému nastavení.",
+          "unit_id": "Výchozí adresa BENY: 1. Pokud jste ji změnili, zadejte nastavenou adresu wallboxu na RS485. Nejde o IP adresu převodníku.",
+          "transport": "Modbus TCP zvolte pro převodník nastavený na Modbus TCP to RTU. Modbus RTU over TCP zvolte jen pro transparentní přenos RTU rámců s CRC."
+        }
+      },
+      "limits": {
+        "title": "Limit proudu a ovládání",
+        "description": "Výchozí horní limit je 6 A. Zvyšte jej pouze na ověřený limit instalace, nejvýše 32 A. Tento strop omezuje příkazy této integrace; nemění trvalý limit wallboxu ani řízení z aplikace. Při přidání se nabíjení nespouští.",
+        "data": {
+          "max_current": "Horní limit integrace (A)",
+          "control_enabled": "Povolit ruční ovládání"
+        },
+        "data_description": {
+          "max_current": "Výchozí hodnota: 6 A. Nastavte ověřený limit instalace, nejvýše 32 A. Omezuje příkazy této integrace; neprovádí dynamické řízení zatížení domu.",
+          "control_enabled": "Zpřístupní přepínač nabíjení a nastavení proudu. Vypněte pro pouhé sledování hodnot. Samotné povolení této volby nabíjení nespustí."
+        }
+      },
+      "reconfigure": {
+        "title": "Změna připojení",
+        "description": "Doporučené nastavení převodníku: TCP Server, Modbus TCP to RTU, TCP port 502; RS485: 4800 Bd, 8 datových bitů, bez parity, 1 stop bit (8N1). Tyto hodnoty nastavte přímo v převodníku; integrace je nemění. Pro ovládání START/STOP vypněte Plug & Play ve wallboxu. Při přidání se spojení ověřuje pouze čtením.",
+        "data": {
+          "name": "Název zařízení",
+          "host": "IP adresa nebo název převodníku",
+          "port": "TCP port převodníku",
+          "unit_id": "Modbus adresa wallboxu",
+          "transport": "Režim převodníku"
+        },
+        "data_description": {
+          "name": "Název tohoto wallboxu v Home Assistantu.",
+          "host": "Zadejte IP adresu nebo název z nastavení převodníku či routeru. Doporučujeme DHCP s rezervací adresy. Nezadávejte http:// ani port.",
+          "port": "Doporučeno: 502 pro Modbus TCP. Zadejte skutečný port TCP serveru převodníku; port 80 obvykle slouží jeho webovému nastavení.",
+          "unit_id": "Výchozí adresa BENY: 1. Pokud jste ji změnili, zadejte nastavenou adresu wallboxu na RS485. Nejde o IP adresu převodníku.",
+          "transport": "Modbus TCP zvolte pro převodník nastavený na Modbus TCP to RTU. Modbus RTU over TCP zvolte jen pro transparentní přenos RTU rámců s CRC."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Wallbox neodpověděl platnými daty. Ověřte IP, port, režim, adresu a dostupnost převodníku.",
+      "unsupported_device": "Tato verze podporuje jednozásuvkové BENY Smart s modelem BCP-…-L.",
+      "already_configured": "Tento wallbox je už nakonfigurován."
+    },
+    "abort": {
+      "already_configured": "Tento wallbox je už nakonfigurován.",
+      "reconfigure_successful": "Připojení bylo aktualizováno."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nastavení ovládání",
+        "description": "Výchozí horní limit je 6 A. Zvyšte jej pouze na ověřený limit instalace, nejvýše 32 A. Tento strop omezuje příkazy této integrace; nemění trvalý limit wallboxu ani řízení z aplikace. Při přidání se nabíjení nespouští.",
+        "data": {
+          "max_current": "Horní limit integrace (A)",
+          "control_enabled": "Povolit ruční ovládání"
+        },
+        "data_description": {
+          "max_current": "Výchozí hodnota: 6 A. Nastavte ověřený limit instalace, nejvýše 32 A. Omezuje příkazy této integrace; neprovádí dynamické řízení zatížení domu.",
+          "control_enabled": "Zpřístupní přepínač nabíjení a nastavení proudu. Vypněte pro pouhé sledování hodnot. Samotné povolení této volby nabíjení nespustí."
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "charging_enabled": {
+        "name": "Povolit nabíjení"
+      }
+    },
+    "number": {
+      "current_limit": {
+        "name": "Nabíjecí proud"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Nabíjí"
+      },
+      "connected": {
+        "name": "Vozidlo připojeno"
+      },
+      "fault": {
+        "name": "Porucha"
+      }
+    },
+    "sensor": {
+      "session_energy": {
+        "name": "Energie nabíjecí relace"
+      },
+      "allowed_current": {
+        "name": "Proud povolený vozidlu"
+      },
+      "permanent_current": {
+        "name": "Trvalý limit proudu"
+      },
+      "connector_status": {
+        "name": "Stav konektoru",
+        "state": {
+          "disconnected": "Odpojeno",
+          "connected_idle": "Připojeno, nenabíjí",
+          "charging": "Nabíjí",
+          "waiting": "Čeká"
+        }
+      },
+      "watchdog_timeout": {
+        "name": "Modbus timeout (pouze čtení)"
+      },
+      "last_communication": {
+        "name": "Poslední úspěšná komunikace"
+      },
+      "voltage_l1": {
+        "name": "Napětí L1"
+      },
+      "current_l1": {
+        "name": "Proud L1"
+      },
+      "voltage_l2": {
+        "name": "Napětí L2"
+      },
+      "current_l2": {
+        "name": "Proud L2"
+      },
+      "voltage_l3": {
+        "name": "Napětí L3"
+      },
+      "current_l3": {
+        "name": "Proud L3"
+      }
+    }
+  }
+}
