@@ -7,8 +7,8 @@ RS485-to-Ethernet gateway. Designed around the BCP-AT2N-L and BENY RS485 Modbus
 protocol v3.8. No BENY DLB box is required. This is an independent community
 integration, not an official BENY product.
 
-**Version 0.1.3 — initial hardware validation pending.** The protocol/control
-suite has 89 simulated tests. This does not validate installation in Home
+**Version 0.1.4 — initial hardware validation pending.** The protocol/control
+suite has 95 simulated tests. This does not validate installation in Home
 Assistant or communication with a physical charger. Requires Home Assistant
 Core 2026.10.0 or newer; no additional Python packages.
 
@@ -83,8 +83,13 @@ reduce charging already in progress and does not change app control.
 
 Polling is serialized, with individual-register reads and a minimum 150 ms
 spacing. A new poll is scheduled approximately every 2 seconds, subject to
-communication duration. Each request allows up to 5 seconds for connection and
-response. A timed-out or disconnected read is retried once after a 250 ms pause,
+communication duration. After each new TCP connection, including a retry or
+reconnect, the client waits 1 second before sending its first request. Connection
+establishment and the subsequent request/response each have a separate 10-second
+timeout; the settling delay does not consume the response timeout. This restores
+the connection delay and timeout used by the earlier client. An existing
+connection is reused without adding the settling delay to each register.
+A timed-out or disconnected read is retried once after a 250 ms pause,
 using a new TCP connection; only the failed register is repeated. Two failed
 attempts fail the update rather than publish partial or fabricated readings.
 Modbus exceptions and malformed replies are not retried. Persistent failures
@@ -154,6 +159,7 @@ set relevant topics, provide the required branding and enable those checks.
 - [Waveshare RS485 TO ETH (B)](https://www.waveshare.com/wiki/RS485_TO_ETH_%28B%29)
 - [HACS custom repositories](https://www.hacs.xyz/docs/faq/custom_repositories/)
 - [HACS integration layout](https://www.hacs.xyz/docs/publish/integration/)
+- [Home Assistant Modbus connection delay](https://www.home-assistant.io/integrations/modbus/#configuring-modbus-communication)
 - [Home Assistant config flow](https://contributors.home-assistant.io/core/integrations/config-flow/)
 
 MIT license applies to the integration source. BENY and Waveshare names belong

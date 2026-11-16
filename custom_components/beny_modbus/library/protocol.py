@@ -47,15 +47,18 @@ def crc16(data: bytes) -> int:
 
 class ModbusClient:
     def __init__(self, host, port, unit=1, transport="rtu_over_tcp",
-                 timeout=5.0, gap=0.15):
+                 timeout=10.0, gap=0.15, connect_delay=1.0):
         if not host or not 1 <= int(port) <= 65535 or not 1 <= int(unit) <= 247:
             raise ValueError("Invalid host, port or Modbus address")
         if transport not in ("tcp", "rtu_over_tcp"):
             raise ValueError("Unsupported transport")
         if not 0 < timeout <= 10 or not 0 <= gap <= 1:
             raise ValueError("Invalid timeout or request gap")
+        if not 0 <= connect_delay <= 5:
+            raise ValueError("Invalid connection settling delay")
         self.host, self.port, self.unit = host, int(port), int(unit)
         self.transport, self.timeout, self.gap = transport, timeout, gap
+        self.connect_delay = connect_delay
         self._reader = self._writer = None
         self._lock = asyncio.Lock()
         self._tid = 0
@@ -117,9 +120,14 @@ class ModbusClient:
             request = f"FC{pdu[0]:02d} register 0x{address:04X} (unit {self.unit}, {self.transport})"
             phase = "opening TCP connection"
             try:
-                async with asyncio.timeout(self.timeout):
-                    if self._writer is None or self._writer.is_closing():
+                if self._writer is None or self._writer.is_closing():
+                    async with asyncio.timeout(self.timeout):
                         self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+                    # The previous client allowed the gateway to settle after
+                    # every connection. Do not spend the response timeout here.
+                    phase = "waiting after TCP connection"
+                    await asyncio.sleep(self.connect_delay)
+                async with asyncio.timeout(self.timeout):
                     phase = "sending Modbus request"
                     self._tid = (self._tid + 1) & 0xFFFF
                     if self.transport == "tcp":

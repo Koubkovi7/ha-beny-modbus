@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4 - 2026-11-16
+
+- Restore a 1-second settling delay after every new TCP connection and the
+  earlier client's 10-second timeout.
+- Give connection establishment and request/response separate timeout budgets;
+  the settling delay does not shorten the response timeout.
+- Reuse established connections without adding a delay before every register.
+  Retries reconnect and wait before sending; cancellation during the delay
+  closes the socket without sending a write.
+- Add TCP and RTU tests with a simulated gateway that ignores early requests.
+- Preserve single-attempt writes, mandatory register validation and current
+  limits. Hardware verification of this compatibility change is still pending.
+
 ## 0.1.3 - 2026-11-16
 
 - Allow 5 seconds per request and increase the minimum request gap to 150 ms.

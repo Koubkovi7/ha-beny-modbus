@@ -6,7 +6,7 @@ Vlastní integrace pro jednozásuvkové wallboxy BENY Smart BCP-...-L přes
 převodník RS485–Ethernet, navržená pro BCP-AT2N-L podle protokolu BENY v3.8.
 DLB box není potřeba. Nejde o oficiální produkt BENY.
 
-**Verze 0.1.3.** K dispozici je 89 simulačních testů protokolu a ovládání.
+**Verze 0.1.4.** K dispozici je 95 simulačních testů protokolu a ovládání.
 Instalace v běžícím HA a komunikace se skutečným wallboxem ještě vyžadují
 ověření. Určeno pro Home Assistant Core 2026.10.0 a novější.
 
@@ -71,9 +71,13 @@ z nastaveného stropu integrace a trvalého limitu wallboxu. Změna stropu sama
 neomezí již probíhající nabíjení a nemění ovládání z aplikace výrobce.
 
 Pravidelné načítání pouze čte jednotlivé registry s odstupem nejméně 150 ms.
-Na spojení a odpověď čeká každý požadavek nejvýše 5 sekund. Při timeoutu nebo
-přerušení spojení se konkrétní čtení po 250 ms jednou zopakuje přes nové TCP
-spojení. Po druhém neúspěchu načítání skončí chybou, bez zveřejnění částečných
+Po každém novém TCP spojení, včetně opakovaného pokusu, klient počká 1 sekundu
+před prvním požadavkem. Navázání spojení a následná výměna požadavku a odpovědi
+mají samostatný timeout 10 sekund; úvodní pauza neukrajuje čas na odpověď.
+Tím se obnovuje úvodní prodleva a timeout dřívějšího klienta. U již otevřeného
+spojení se tato pauza před každým registrem neopakuje.
+Při timeoutu nebo přerušení spojení se konkrétní čtení po 250 ms jednou zopakuje
+přes nové TCP spojení. Po druhém neúspěchu načítání skončí chybou, bez zveřejnění částečných
 nebo náhradních hodnot. Chybové odpovědi Modbus a vadné rámce se neopakují.
 Trvalý výpadek se tím hlásí později; úprava pomáhá s přechodnými výpadky,
 nezaručuje komunikaci ani chování timeoutu wallboxu.

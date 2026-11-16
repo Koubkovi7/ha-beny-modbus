@@ -33,6 +33,7 @@ class Simulator:
         self.drop_write_response = False
         self.drop_reads_after_write = 0
         self.connections = 0
+        self.ready_delay = 0
 
     async def open(self):
         self.server = await asyncio.start_server(self.handle, "127.0.0.1", 0)
@@ -52,6 +53,7 @@ class Simulator:
         self.tasks.add(task)
         self.writers.add(writer)
         self.connections += 1
+        connected_at = asyncio.get_running_loop().time()
         try:
             while True:
                 if self.transport == "tcp":
@@ -66,6 +68,8 @@ class Simulator:
                     pdu = frame[1:-2]
                 fn, address, count = struct.unpack(">BHH", pdu[:5])
                 self.requests.append((fn, address, count))
+                if asyncio.get_running_loop().time() - connected_at < self.ready_delay:
+                    continue  # Simulate a gateway that discards early requests.
                 if self.delay:
                     await asyncio.sleep(self.delay)
                 if fn in (3, 4):
@@ -146,13 +150,75 @@ class DeviceTests:
     async def asyncSetUp(self):
         self.sim = Simulator(self.transport)
         port = await self.sim.open()
-        self.client = ModbusClient("127.0.0.1", port, transport=self.transport, gap=0, timeout=0.2)
+        self.client = ModbusClient(
+            "127.0.0.1", port, transport=self.transport,
+            gap=0, timeout=0.2, connect_delay=0,
+        )
         self.now = 100.0
         self.device = BenyDevice(self.client, max_current=16, clock=lambda: self.now)
 
     async def asyncTearDown(self):
         await self.client.close()
         await self.sim.close()
+
+    async def test_gateway_settles_once_without_using_response_timeout(self):
+        self.client.connect_delay = 0.08
+        self.client.timeout = 0.05
+        self.sim.ready_delay = 0.05
+        self.sim.delay = 0.02
+        with patch("library.protocol.asyncio.sleep", wraps=asyncio.sleep) as sleep:
+            self.assertEqual(await self.client.read(4, 0), [3])
+            self.assertEqual(await self.client.read(4, 0x100), [123])
+        self.assertEqual(
+            sum(c.args == (self.client.connect_delay,) for c in sleep.call_args_list), 1
+        )
+        self.assertEqual(self.sim.requests, [(4, 0, 1), (4, 0x100, 1)])
+        self.assertEqual(self.sim.connections, 1)
+        self.assertFalse(self.sim.writes)
+
+    async def test_reconnect_waits_for_gateway_again(self):
+        self.client.connect_delay = 0.08
+        self.client.timeout = 0.05
+        self.sim.ready_delay = 0.05
+        self.sim.disconnect_reads = 1
+        with patch("library.protocol.asyncio.sleep", wraps=asyncio.sleep) as sleep:
+            self.assertEqual(await self.client.read(4, 0), [3])
+        self.assertEqual(
+            sum(c.args == (self.client.connect_delay,) for c in sleep.call_args_list), 2
+        )
+        self.assertEqual(self.sim.requests, [(4, 0, 1)] * 2)
+        self.assertEqual(self.sim.connections, 2)
+        self.assertFalse(self.sim.writes)
+
+    async def test_cancel_during_settling_sends_no_write(self):
+        self.client.connect_delay = 0.08
+        settling = asyncio.Event()
+        release = asyncio.Event()
+        original_sleep = asyncio.sleep
+
+        async def controlled_sleep(delay):
+            if delay == self.client.connect_delay:
+                settling.set()
+                await release.wait()
+            else:
+                await original_sleep(delay)
+
+        with patch("library.protocol.asyncio.sleep", side_effect=controlled_sleep):
+            task = asyncio.create_task(self.client.write(0x201, 1))
+            try:
+                async with asyncio.timeout(1):
+                    await settling.wait()
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+            finally:
+                release.set()
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        self.assertEqual(self.sim.connections, 1)
+        self.assertFalse(self.sim.requests)
+        self.assertFalse(self.sim.writes)
+        self.assertIsNone(self.client._writer)
 
     async def test_identify_and_scaling(self):
         identity = await self.device.identify()
