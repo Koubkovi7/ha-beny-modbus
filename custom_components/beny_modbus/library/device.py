@@ -60,7 +60,10 @@ class BenyDevice:
             model = model_bytes.split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
             fw, hw = await self._one(4, 0x0B), await self._one(4, 0x0C)
             if attribute not in (1, 3) or not model.startswith("BCP-") or not model.endswith("-L"):
-                raise CommandRejected("This version supports single-connector BENY Smart (-L) chargers only")
+                raise CommandRejected(
+                    f"Unsupported identity: model={model!r}, attribute=0x{attribute:04X}; "
+                    "single-connector BENY Smart (-L) required"
+                )
             self.identity = Identity(model, fw, hw, attribute)
             return self.identity
 
@@ -93,7 +96,10 @@ class BenyDevice:
             enabled = await self._one(3, 0x0201)
             permanent = await self._one(3, 0x0203)
             if enabled not in (0, 1) or values[8] not in (0, 1, 2, 3):
-                raise BenyError("Unknown charger state; controls require a known state")
+                raise BenyError(
+                    f"Unknown charger state: authorization 0x0201={enabled}, "
+                    f"connector 0x0108={values[8]}; controls require a known state"
+                )
             self.snapshot = Snapshot(
                 values[0] / 10, tuple(v / 10 for v in values[1:4]),
                 tuple(v / 10 for v in values[4:7]), values[7], values[8],

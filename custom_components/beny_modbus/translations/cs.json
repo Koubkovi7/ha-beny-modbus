@@ -51,8 +51,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Wallbox neodpověděl platnými daty. Ověřte IP, port, režim, adresu a dostupnost převodníku.",
-      "unsupported_device": "Tato verze podporuje jednozásuvkové BENY Smart s modelem BCP-…-L.",
+      "cannot_connect": "Ověření komunikace selhalo. Detail: {error}",
+      "unsupported_device": "Wallbox vrátil nepodporovanou identifikaci. Detail: {error}",
       "already_configured": "Tento wallbox je už nakonfigurován."
     },
     "abort": {

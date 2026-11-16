@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 - 2026-11-16
+
+- Show the actual setup failure in the form and in Home Assistant logs.
+- Distinguish TCP connection failures, reply timeouts, closed connections and
+  Modbus exceptions, including the requested function and register.
+- Show actual values when rejecting an unknown charger state or identity.
+- Display the Modbus unit address in a numeric input box instead of a slider.
+- Add regression coverage for failed connection/read diagnostics without writes
+  or retries. Charging behavior and communication parameters remain unchanged.
+
 ## 0.1.1 — 2026-11-15
 
 - Add HACS metadata and repository validation.

@@ -7,8 +7,8 @@ RS485-to-Ethernet gateway. Designed around the BCP-AT2N-L and BENY RS485 Modbus
 protocol v3.8. No BENY DLB box is required. This is an independent community
 integration, not an official BENY product.
 
-**Version 0.1.1 — initial hardware validation pending.** The protocol/control
-suite has 61 simulated tests. This does not validate installation in Home
+**Version 0.1.2 — initial hardware validation pending.** The protocol/control
+suite has 73 simulated tests. This does not validate installation in Home
 Assistant or communication with a physical charger. Requires Home Assistant
 Core 2026.10.0 or newer; no additional Python packages.
 
@@ -152,3 +152,19 @@ set relevant topics, provide the required branding and enable those checks.
 
 MIT license applies to the integration source. BENY and Waveshare names belong
 to their respective owners.
+
+## Connection error details
+
+From 0.1.2, setup shows the failing register and a detailed reason. Opening the
+gateway web page proves access to its HTTP service only, not the Modbus port.
+
+| Detail | What to check |
+| --- | --- |
+| `opening TCP connection` | Reachability from HA, configured TCP server port and network isolation |
+| `waiting for Modbus response` | Gateway transport mode, RS485 settings, charger power and unit address |
+| `exception 0x..` | A Modbus exception reply was received; report the exception and register |
+| `Invalid Modbus TCP header` / `RTU CRC mismatch` | Framing, gateway mode and response integrity |
+| `Unknown charger state` / `Unsupported identity` | Report the returned values before changing control behavior |
+
+Report the complete detail shown in the form or the `BENY setup validation
+failed` log line. A failing register alone does not identify the root cause.

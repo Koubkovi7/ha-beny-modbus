@@ -6,7 +6,7 @@ Vlastní integrace pro jednozásuvkové wallboxy BENY Smart BCP-...-L přes
 převodník RS485–Ethernet, navržená pro BCP-AT2N-L podle protokolu BENY v3.8.
 DLB box není potřeba. Nejde o oficiální produkt BENY.
 
-**Verze 0.1.1.** K dispozici je 61 simulačních testů protokolu a ovládání.
+**Verze 0.1.2.** K dispozici je 73 simulačních testů protokolu a ovládání.
 Instalace v běžícím HA a komunikace se skutečným wallboxem ještě vyžadují
 ověření. Určeno pro Home Assistant Core 2026.10.0 a novější.
 
@@ -121,3 +121,19 @@ potřeba tyto údaje doplnit a příslušné kontroly zapnout.
 
 Úplný technický popis a odkazy na dokumentaci jsou v [anglickém návodu](README.md).
 Zdrojový kód je pod licencí MIT.
+
+## Podrobnosti chyby připojení
+
+Od verze 0.1.2 ukazuje formulář konkrétní registr a důvod chyby. Funkční web
+převodníku ověřuje pouze jeho HTTP rozhraní, nikoli dostupnost Modbus z HA.
+
+| Text v detailu | Co ověřit |
+| --- | --- |
+| `opening TCP connection` | Dostupnost z HA, port TCP serveru a oddělení sítí |
+| `waiting for Modbus response` | Režim převodníku, nastavení RS485, napájení a adresu wallboxu |
+| `exception 0x..` | Přišla chybová odpověď Modbus; pošlete kód i adresu registru |
+| `Invalid Modbus TCP header` / `RTU CRC mismatch` | Formát rámců, režim převodníku a neporušenost odpovědi |
+| `Unknown charger state` / `Unsupported identity` | Pošlete vrácené hodnoty před změnou ovládání |
+
+Při řešení chyby pošlete celý detail z formuláře nebo řádek logu
+`BENY setup validation failed`. Samotná adresa registru příčinu neurčuje.

@@ -51,8 +51,8 @@
       }
     },
     "error": {
-      "cannot_connect": "No valid charger response. Check host, port, mode, unit ID and gateway availability.",
-      "unsupported_device": "This version supports single-connector BENY Smart BCP-…-L chargers.",
+      "cannot_connect": "Communication validation failed. Detail: {error}",
+      "unsupported_device": "The charger returned an unsupported identity. Detail: {error}",
       "already_configured": "This charger is already configured."
     },
     "abort": {

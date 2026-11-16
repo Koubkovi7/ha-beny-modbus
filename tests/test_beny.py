@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "beny_modbus"))
 from library.protocol import BenyError, ModbusClient, ModbusException, WriteUncertain, crc16
@@ -25,6 +26,7 @@ class Simulator:
         self.bad_crc = self.bad_tid = self.bad_unit = self.short_read = False
         self.fragment = False
         self.delay = 0
+        self.disconnect_on_read = False
         self.connections = 0
 
     async def open(self):
@@ -62,6 +64,8 @@ class Simulator:
                 if self.delay:
                     await asyncio.sleep(self.delay)
                 if fn in (3, 4):
+                    if self.disconnect_on_read:
+                        return
                     registers = self.holding if fn == 3 else self.inputs
                     if any(address + i not in registers for i in range(count)):
                         response = bytes([fn | 0x80, 2])
@@ -143,6 +147,56 @@ class DeviceTests:
         self.assertEqual(data.energy_kwh, 12.3)
         self.assertEqual(data.voltages, (230.1, 231.2, 229.9))
         self.assertEqual(data.currents, (16, 0, 15.9))
+        self.assertFalse(self.sim.writes)
+
+    async def test_connection_refused_reports_stage_and_register(self):
+        with patch("asyncio.open_connection", side_effect=ConnectionRefusedError("test refused")):
+            with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*opening TCP connection.*ConnectionRefusedError"):
+                await self.device.identify()
+        self.assertFalse(self.sim.requests)
+        self.assertFalse(self.sim.writes)
+
+    async def test_connect_timeout_is_distinct_from_response_timeout(self):
+        async def slow_connect(*args, **kwargs):
+            await asyncio.sleep(10)
+        self.client.timeout = 0.01
+        with patch("asyncio.open_connection", slow_connect):
+            with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*timeout.*opening TCP connection"):
+                await self.device.identify()
+        self.assertFalse(self.sim.requests)
+        self.assertIsNone(self.client._writer)
+
+    async def test_response_timeout_reports_request_without_retry(self):
+        self.sim.delay = 0.1
+        self.client.timeout = 0.01
+        with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*timeout.*waiting for Modbus response"):
+            await self.device.identify()
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertFalse(self.sim.writes)
+        self.assertIsNone(self.client._writer)
+
+    async def test_modbus_exception_preserves_code_and_register(self):
+        del self.sim.inputs[0x101]
+        with self.assertRaises(ModbusException) as error:
+            await self.client.read(4, 0x101)
+        self.assertEqual((error.exception.function, error.exception.code, error.exception.address), (4, 2, 0x101))
+        self.assertIn("register 0x0101: exception 0x02", str(error.exception))
+        self.assertEqual(await self.client.read(4, 0x100), [123])
+        self.assertFalse(self.sim.writes)
+
+    async def test_closed_response_reports_stage_without_retry(self):
+        self.sim.disconnect_on_read = True
+        with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*peer closed connection.*waiting for Modbus response"):
+            await self.device.identify()
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertFalse(self.sim.writes)
+        self.assertIsNone(self.client._writer)
+
+    async def test_unknown_state_reports_actual_values(self):
+        self.sim.holding[0x201] = 99
+        self.sim.inputs[0x108] = 7
+        with self.assertRaisesRegex(BenyError, r"authorization 0x0201=99, connector 0x0108=7"):
+            await self.device.poll()
         self.assertFalse(self.sim.writes)
 
     async def test_read_only_setup_poll_and_watchdog(self):

@@ -1,8 +1,11 @@
 """UI setup; discovery/validation never writes to the charger."""
+import logging
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     DOMAIN, CONF_UNIT, CONF_TRANSPORT, CONF_MAX_CURRENT, CONF_CONTROL,
@@ -10,6 +13,8 @@ from .const import (
 )
 from .library.protocol import BenyError, ModbusClient
 from .library.device import BenyDevice, CommandRejected
+
+_LOGGER = logging.getLogger(__name__)
 
 def connection_schema(defaults=None):
     d = defaults or {}
@@ -21,7 +26,9 @@ def connection_schema(defaults=None):
         vol.Required(CONF_TRANSPORT, default=d.get(CONF_TRANSPORT, "tcp")):
             vol.In({"rtu_over_tcp": "Modbus RTU over TCP", "tcp": "Modbus TCP"}),
         vol.Required(CONF_UNIT, default=d.get(CONF_UNIT, 1)):
-            vol.All(vol.Coerce(int), vol.Range(min=1, max=247)),
+            selector.NumberSelector(selector.NumberSelectorConfig(
+                min=1, max=247, step=1, mode=selector.NumberSelectorMode.BOX,
+            )),
     })
 
 def options_schema(defaults=None):
@@ -54,22 +61,29 @@ class BenyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         errors = {}
+        placeholders = {"error": ""}
         if user_input is not None:
+            user_input[CONF_UNIT] = int(user_input[CONF_UNIT])
             user_input[CONF_HOST] = user_input[CONF_HOST].strip().lower().rstrip(".")
             unique = f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}:{user_input[CONF_UNIT]}"
             await self.async_set_unique_id(unique)
             self._abort_if_unique_id_configured()
             try:
                 await validate_connection(user_input)
-            except CommandRejected:
+            except CommandRejected as err:
                 errors["base"] = "unsupported_device"
-            except (BenyError, ValueError):
+                placeholders["error"] = str(err)
+                _LOGGER.warning("BENY setup validation failed: %s", err)
+            except (BenyError, ValueError) as err:
                 errors["base"] = "cannot_connect"
+                placeholders["error"] = str(err) or type(err).__name__
+                _LOGGER.warning("BENY setup validation failed: %s", placeholders["error"])
             else:
                 self._connection_data = user_input
                 return await self.async_step_limits()
         return self.async_show_form(
-            step_id="user", data_schema=connection_schema(user_input), errors=errors
+            step_id="user", data_schema=connection_schema(user_input), errors=errors,
+            description_placeholders=placeholders,
         )
 
     async def async_step_limits(self, user_input=None):
@@ -83,7 +97,9 @@ class BenyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(self, user_input=None):
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
+        placeholders = {"error": ""}
         if user_input is not None:
+            user_input[CONF_UNIT] = int(user_input[CONF_UNIT])
             user_input[CONF_HOST] = user_input[CONF_HOST].strip().lower().rstrip(".")
             unique = f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}:{user_input[CONF_UNIT]}"
             if any(e.entry_id != entry.entry_id and e.unique_id == unique
@@ -92,10 +108,14 @@ class BenyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 try:
                     await validate_connection(user_input)
-                except CommandRejected:
+                except CommandRejected as err:
                     errors["base"] = "unsupported_device"
-                except (BenyError, ValueError):
+                    placeholders["error"] = str(err)
+                    _LOGGER.warning("BENY reconfiguration validation failed: %s", err)
+                except (BenyError, ValueError) as err:
                     errors["base"] = "cannot_connect"
+                    placeholders["error"] = str(err) or type(err).__name__
+                    _LOGGER.warning("BENY reconfiguration validation failed: %s", placeholders["error"])
                 else:
                     return self.async_update_reload_and_abort(
                         entry, data={**entry.data, **user_input},
@@ -104,6 +124,7 @@ class BenyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=connection_schema(user_input or entry.data), errors=errors,
+            description_placeholders=placeholders,
         )
 
 class BenyOptionsFlow(config_entries.OptionsFlowWithReload):

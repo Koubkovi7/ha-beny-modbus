@@ -15,9 +15,11 @@ class BenyError(Exception):
 
 
 class ModbusException(BenyError):
-    def __init__(self, function: int, code: int):
+    def __init__(self, function: int, code: int, address: int | None = None):
         self.function, self.code = function, code
-        super().__init__(f"Modbus function {function:#04x}: exception {code:#04x}")
+        self.address = address
+        register = f" register 0x{address:04X}" if address is not None else ""
+        super().__init__(f"Modbus FC{function:02d}{register}: exception 0x{code:02X}")
 
 
 class WriteUncertain(BenyError):
@@ -69,7 +71,10 @@ class ModbusClient:
         reply = await self._exchange(pdu)
         if len(reply) != 2 + 2 * count or reply[1] != 2 * count:
             await self.close()
-            raise BenyError("Unexpected register count")
+            raise BenyError(
+                f"FC{function:02d} register 0x{address:04X}: unexpected register count "
+                f"(expected {count}, reply byte count {reply[1] if len(reply) > 1 else 'missing'})"
+            )
         return list(struct.unpack(f">{count}H", reply[2:]))
 
     async def write(self, address: int, value: int):
@@ -86,10 +91,14 @@ class ModbusClient:
         async with self._lock:
             await asyncio.sleep(max(0, self.gap - (time.monotonic() - self._last_end)))
             attempted = False
+            address = int.from_bytes(pdu[1:3], "big")
+            request = f"FC{pdu[0]:02d} register 0x{address:04X} (unit {self.unit}, {self.transport})"
+            phase = "opening TCP connection"
             try:
                 async with asyncio.timeout(self.timeout):
                     if self._writer is None or self._writer.is_closing():
                         self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+                    phase = "sending Modbus request"
                     self._tid = (self._tid + 1) & 0xFFFF
                     if self.transport == "tcp":
                         frame = struct.pack(">HHHB", self._tid, 0, len(pdu) + 1, self.unit) + pdu
@@ -99,6 +108,7 @@ class ModbusClient:
                     attempted = True
                     self._writer.write(frame)
                     await self._writer.drain()
+                    phase = "waiting for Modbus response"
                     if self.transport == "tcp":
                         header = await self._reader.readexactly(7)
                         tid, protocol, length, unit = struct.unpack(">HHHB", header)
@@ -127,7 +137,7 @@ class ModbusClient:
                     if reply[0] == pdu[0] | 0x80:
                         if len(reply) != 2:
                             raise BenyError("Malformed exception response")
-                        raise ModbusException(pdu[0], reply[1])
+                        raise ModbusException(pdu[0], reply[1], address)
                     if reply[0] != pdu[0]:
                         raise BenyError("Unexpected function code")
                     return reply
@@ -139,8 +149,19 @@ class ModbusClient:
                 raise
             except (OSError, TimeoutError, asyncio.IncompleteReadError, BenyError) as err:
                 await self.close()
+                if isinstance(err, TimeoutError):
+                    detail = f"timeout after {self.timeout:g} s while {phase}"
+                elif isinstance(err, asyncio.IncompleteReadError):
+                    detail = (
+                        f"peer closed connection while {phase}; "
+                        f"received {len(err.partial)} of {err.expected} expected bytes"
+                    )
+                else:
+                    detail = f"{phase}: {type(err).__name__}: {err}"
                 if writing and attempted:
-                    raise WriteUncertain("Write outcome unknown; read back before retrying") from err
-                raise BenyError(f"Modbus communication failed: {err}") from err
+                    raise WriteUncertain(
+                        f"{request}: write outcome unknown; {detail}; read back before retrying"
+                    ) from err
+                raise BenyError(f"{request}: {detail}") from err
             finally:
                 self._last_end = time.monotonic()
