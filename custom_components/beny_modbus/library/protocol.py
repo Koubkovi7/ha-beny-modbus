@@ -6,12 +6,22 @@ late replies cannot be mistaken for replies to subsequent requests.
 """
 
 import asyncio
+import logging
 import struct
 import time
 
 
+_LOGGER = logging.getLogger(__name__)
+_READ_ATTEMPTS = 2
+_READ_RETRY_DELAY = 0.25
+
+
 class BenyError(Exception):
     """Communication or device error."""
+
+
+class TransportError(BenyError):
+    """Connection/response failure; only read requests may be retried."""
 
 
 class ModbusException(BenyError):
@@ -37,7 +47,7 @@ def crc16(data: bytes) -> int:
 
 class ModbusClient:
     def __init__(self, host, port, unit=1, transport="rtu_over_tcp",
-                 timeout=2.0, gap=0.08):
+                 timeout=5.0, gap=0.15):
         if not host or not 1 <= int(port) <= 65535 or not 1 <= int(unit) <= 247:
             raise ValueError("Invalid host, port or Modbus address")
         if transport not in ("tcp", "rtu_over_tcp"):
@@ -68,7 +78,19 @@ class ModbusClient:
         if not 0 <= address <= 65535 or address + count > 65536:
             raise ValueError("Invalid register address")
         pdu = struct.pack(">BHH", function, address, count)
-        reply = await self._exchange(pdu)
+        for attempt in range(_READ_ATTEMPTS):
+            try:
+                reply = await self._exchange(pdu)
+                break
+            except TransportError as err:
+                if attempt + 1 == _READ_ATTEMPTS:
+                    raise TransportError(
+                        f"{err}; read failed after {_READ_ATTEMPTS} attempts"
+                    ) from err
+                # _exchange closed the failed connection. Retry this read only;
+                # never retry writes, Modbus exceptions or malformed replies.
+                _LOGGER.debug("Retrying read after communication failure: %s", err)
+                await asyncio.sleep(_READ_RETRY_DELAY)
         if len(reply) != 2 + 2 * count or reply[1] != 2 * count:
             await self.close()
             raise BenyError(
@@ -162,6 +184,8 @@ class ModbusClient:
                     raise WriteUncertain(
                         f"{request}: write outcome unknown; {detail}; read back before retrying"
                     ) from err
+                if isinstance(err, (OSError, TimeoutError, asyncio.IncompleteReadError)):
+                    raise TransportError(f"{request}: {detail}") from err
                 raise BenyError(f"{request}: {detail}") from err
             finally:
                 self._last_end = time.monotonic()

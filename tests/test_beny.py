@@ -27,6 +27,11 @@ class Simulator:
         self.fragment = False
         self.delay = 0
         self.disconnect_on_read = False
+        self.disconnect_reads = 0
+        self.drop_read_responses = 0
+        self.drop_read_address = None
+        self.drop_write_response = False
+        self.drop_reads_after_write = 0
         self.connections = 0
 
     async def open(self):
@@ -64,8 +69,13 @@ class Simulator:
                 if self.delay:
                     await asyncio.sleep(self.delay)
                 if fn in (3, 4):
-                    if self.disconnect_on_read:
+                    if self.disconnect_on_read or self.disconnect_reads:
+                        self.disconnect_reads = max(0, self.disconnect_reads - 1)
                         return
+                    if (self.drop_read_responses and
+                            self.drop_read_address in (None, address)):
+                        self.drop_read_responses -= 1
+                        continue
                     registers = self.holding if fn == 3 else self.inputs
                     if any(address + i not in registers for i in range(count)):
                         response = bytes([fn | 0x80, 2])
@@ -83,6 +93,10 @@ class Simulator:
                         response = bytes([0x90, 3])
                     else:
                         self.holding[address] = value
+                        self.drop_read_responses += self.drop_reads_after_write
+                        self.drop_reads_after_write = 0
+                        if self.drop_write_response:
+                            continue
                         response = struct.pack(">BHH", 16, address + int(self.bad_ack), 1)
                         self.bad_ack = False
                         if self.drop_ack:
@@ -166,12 +180,13 @@ class DeviceTests:
         self.assertFalse(self.sim.requests)
         self.assertIsNone(self.client._writer)
 
-    async def test_response_timeout_reports_request_without_retry(self):
+    async def test_response_timeout_stops_after_two_attempts(self):
         self.sim.delay = 0.1
         self.client.timeout = 0.01
-        with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*timeout.*waiting for Modbus response"):
+        with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*timeout.*waiting for Modbus response.*2 attempts"):
             await self.device.identify()
-        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertEqual(self.sim.requests, [(4, 0, 1)] * 2)
+        self.assertEqual(self.sim.connections, 2)
         self.assertFalse(self.sim.writes)
         self.assertIsNone(self.client._writer)
 
@@ -181,16 +196,106 @@ class DeviceTests:
             await self.client.read(4, 0x101)
         self.assertEqual((error.exception.function, error.exception.code, error.exception.address), (4, 2, 0x101))
         self.assertIn("register 0x0101: exception 0x02", str(error.exception))
+        self.assertEqual(self.sim.requests, [(4, 0x101, 1)])
         self.assertEqual(await self.client.read(4, 0x100), [123])
         self.assertFalse(self.sim.writes)
 
-    async def test_closed_response_reports_stage_without_retry(self):
+    async def test_closed_response_stops_after_two_attempts(self):
         self.sim.disconnect_on_read = True
-        with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*peer closed connection.*waiting for Modbus response"):
+        with self.assertRaisesRegex(BenyError, r"FC04 register 0x0000.*peer closed connection.*waiting for Modbus response.*2 attempts"):
             await self.device.identify()
-        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertEqual(self.sim.requests, [(4, 0, 1)] * 2)
+        self.assertEqual(self.sim.connections, 2)
         self.assertFalse(self.sim.writes)
         self.assertIsNone(self.client._writer)
+
+    async def test_dropped_read_recovers_on_new_connection(self):
+        self.client.timeout = 0.03
+        expected = []
+        for function, address, value in ((4, 0x103, 2299), (3, 0x200, 16)):
+            self.sim.drop_read_responses = 1
+            self.assertEqual(await self.client.read(function, address), [value])
+            expected.extend([(function, address, 1)] * 2)
+        self.assertEqual(self.sim.requests, expected)
+        self.assertEqual(self.sim.connections, 3)
+        self.assertFalse(self.sim.writes)
+
+    async def test_closed_read_recovers_on_new_connection(self):
+        self.sim.disconnect_reads = 1
+        self.assertEqual(await self.client.read(4, 0), [3])
+        self.assertEqual(self.sim.requests, [(4, 0, 1)] * 2)
+        self.assertEqual(self.sim.connections, 2)
+        self.assertFalse(self.sim.writes)
+
+    async def test_setup_retries_only_the_failed_register(self):
+        self.client.timeout = 0.03
+        self.sim.drop_read_responses = 1
+        self.sim.drop_read_address = 0x103
+        identity = await self.device.identify()
+        snapshot = await self.device.poll()
+        self.assertEqual(identity.model, "BCP-AT2N-L")
+        self.assertEqual(snapshot.voltages, (230.1, 231.2, 229.9))
+        self.assertEqual(len(self.sim.requests), 27)
+        self.assertEqual(self.sim.requests.count((4, 0x103, 1)), 2)
+        self.assertEqual(self.sim.requests.count((4, 0, 1)), 1)
+        self.assertFalse(self.sim.writes)
+
+    async def test_failed_poll_does_not_publish_partial_snapshot(self):
+        original = await self.device.poll()
+        self.sim.inputs[0x100] = 999
+        self.client.timeout = 0.03
+        self.sim.drop_read_responses = 2
+        self.sim.drop_read_address = 0x103
+        with self.assertRaisesRegex(BenyError, "2 attempts"):
+            await self.device.poll()
+        self.assertIs(self.device.snapshot, original)
+        self.assertFalse(self.sim.writes)
+
+    async def test_cancelled_read_does_not_retry(self):
+        self.sim.drop_read_responses = 10
+        task = asyncio.create_task(self.client.read(4, 0))
+        try:
+            async with asyncio.timeout(1):
+                while not self.sim.requests:
+                    await asyncio.sleep(0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertEqual(self.sim.requests, [(4, 0, 1)])
+            self.assertIsNone(self.client._writer)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    async def test_write_timeout_never_repeats_write(self):
+        self.client.timeout = 0.03
+        self.sim.drop_write_response = True
+        with self.assertRaises(WriteUncertain):
+            await self.client.write(0x201, 1)
+        self.assertEqual(self.sim.requests, [(16, 0x201, 1)])
+        self.assertEqual(self.sim.writes, [(0x201, 1)])
+        self.assertEqual(self.sim.connections, 1)
+        self.assertEqual(await self.client.read(3, 0x201), [1])
+        self.assertEqual(self.sim.writes, [(0x201, 1)])
+
+    async def test_readback_retry_does_not_repeat_start(self):
+        self.client.timeout = 0.03
+        self.sim.drop_ack = True
+        self.sim.drop_reads_after_write = 1
+        await self.device.start()
+        self.assertEqual(self.sim.writes, [(0x201, 1)])
+        self.assertEqual(self.sim.requests.count((3, 0x201, 1)), 3)
+        self.assertEqual(self.sim.connections, 3)
+
+    async def test_retry_still_rejects_wrong_response(self):
+        self.client.timeout = 0.03
+        self.sim.drop_read_responses = 1
+        self.sim.bad_unit = True
+        with self.assertRaises(BenyError):
+            await self.client.read(4, 0)
+        self.assertEqual(self.sim.requests, [(4, 0, 1)] * 2)
+        self.assertEqual(self.sim.connections, 2)
+        self.assertFalse(self.sim.writes)
 
     async def test_unknown_state_reports_actual_values(self):
         self.sim.holding[0x201] = 99

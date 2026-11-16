@@ -7,8 +7,8 @@ RS485-to-Ethernet gateway. Designed around the BCP-AT2N-L and BENY RS485 Modbus
 protocol v3.8. No BENY DLB box is required. This is an independent community
 integration, not an official BENY product.
 
-**Version 0.1.2 — initial hardware validation pending.** The protocol/control
-suite has 73 simulated tests. This does not validate installation in Home
+**Version 0.1.3 — initial hardware validation pending.** The protocol/control
+suite has 89 simulated tests. This does not validate installation in Home
 Assistant or communication with a physical charger. Requires Home Assistant
 Core 2026.10.0 or newer; no additional Python packages.
 
@@ -81,9 +81,15 @@ only read: they do not restore a previous START or current command. The
 integration ceiling limits its own commands; changing it does not immediately
 reduce charging already in progress and does not change app control.
 
-Polling is serialized, with individual-register reads and a minimum 80 ms
+Polling is serialized, with individual-register reads and a minimum 150 ms
 spacing. A new poll is scheduled approximately every 2 seconds, subject to
-communication duration. Polling never sends START/STOP. If charging is already
+communication duration. Each request allows up to 5 seconds for connection and
+response. A timed-out or disconnected read is retried once after a 250 ms pause,
+using a new TCP connection; only the failed register is repeated. Two failed
+attempts fail the update rather than publish partial or fabricated readings.
+Modbus exceptions and malformed replies are not retried. Persistent failures
+take longer to report; this is recovery for transient outages, not a guarantee
+of communication or charger watchdog behavior. Polling never sends START/STOP. If charging is already
 authorized, another START is suppressed. START attempts have a 30-second guard;
 STOP does not wait for it. Changing current writes only volatile register
 `0x0200`, without STOP/START. Writes use FC16 and readback; uncertain writes are
@@ -168,3 +174,9 @@ gateway web page proves access to its HTTP service only, not the Modbus port.
 
 Report the complete detail shown in the form or the `BENY setup validation
 failed` log line. A failing register alone does not identify the root cause.
+
+If timeouts move between registers on repeated setup attempts, the replies are
+intermittent; this does not establish the underlying cause. If both read attempts
+still fail, collect the complete error and the gateway's serial, TCP and advanced
+Modbus settings. Check for another Modbus client, storage/automatic-query mode,
+and RS485 connectivity before changing the charger register map.

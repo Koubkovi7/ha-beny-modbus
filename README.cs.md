@@ -6,7 +6,7 @@ Vlastní integrace pro jednozásuvkové wallboxy BENY Smart BCP-...-L přes
 převodník RS485–Ethernet, navržená pro BCP-AT2N-L podle protokolu BENY v3.8.
 DLB box není potřeba. Nejde o oficiální produkt BENY.
 
-**Verze 0.1.2.** K dispozici je 73 simulačních testů protokolu a ovládání.
+**Verze 0.1.3.** K dispozici je 89 simulačních testů protokolu a ovládání.
 Instalace v běžícím HA a komunikace se skutečným wallboxem ještě vyžadují
 ověření. Určeno pro Home Assistant Core 2026.10.0 a novější.
 
@@ -70,7 +70,15 @@ celoživotní elektroměr pro Energy Dashboard. Proud je omezen nižší hodnoto
 z nastaveného stropu integrace a trvalého limitu wallboxu. Změna stropu sama
 neomezí již probíhající nabíjení a nemění ovládání z aplikace výrobce.
 
-Pravidelné načítání pouze čte jednotlivé registry. Opakovaný START při již
+Pravidelné načítání pouze čte jednotlivé registry s odstupem nejméně 150 ms.
+Na spojení a odpověď čeká každý požadavek nejvýše 5 sekund. Při timeoutu nebo
+přerušení spojení se konkrétní čtení po 250 ms jednou zopakuje přes nové TCP
+spojení. Po druhém neúspěchu načítání skončí chybou, bez zveřejnění částečných
+nebo náhradních hodnot. Chybové odpovědi Modbus a vadné rámce se neopakují.
+Trvalý výpadek se tím hlásí později; úprava pomáhá s přechodnými výpadky,
+nezaručuje komunikaci ani chování timeoutu wallboxu.
+
+Opakovaný START při již
 povoleném nabíjení se neposílá; další pokus chrání prodleva 30 sekund.
 STOP na ni nečeká. Změna proudu používá dočasný registr `0x0200` bez
 vypnutí a zapnutí. Nejistý zápis se automaticky neopakuje. Při přidání,
@@ -137,3 +145,9 @@ převodníku ověřuje pouze jeho HTTP rozhraní, nikoli dostupnost Modbus z HA.
 
 Při řešení chyby pošlete celý detail z formuláře nebo řádek logu
 `BENY setup validation failed`. Samotná adresa registru příčinu neurčuje.
+
+Pokud při opakovaném přidání selhávají různé registry, odpovědi přicházejí
+nepravidelně; samotná hláška ale neurčuje příčinu. Při neúspěchu obou čtení
+pošlete celý detail a nastavení převodníku: sériovou linku, TCP a pokročilé
+volby Modbus. Před změnou mapy registrů prověřte souběžný Modbus program,
+cache / automatické dotazování převodníku a spojení RS485.
