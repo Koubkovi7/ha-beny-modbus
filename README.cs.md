@@ -114,7 +114,10 @@ ZIP vznikne ve složce `dist`. Obsahuje veřejné zdroje, překlady, návody a t
 Původní XLSX od výrobce je samostatný podklad a není součástí veřejného balíčku.
 V prostředí bez socketů použijte `python tests/run_memory.py`; tento režim
 neověřuje skutečnou síť ani běžící HA. GitHub Actions jsou připravené pro testy,
-kontrolu balíčku, HACS a hassfest; spustí se až po nahrání na GitHub.
+kontrolu balíčku, HACS a hassfest. Kontrola HACS je určená pro vlastní repozitář:
+vynechává katalogový popis, témata a branding. Při instalaci vlastního repozitáře
+se tyto kontroly nespouštějí. Před přihlášením do výchozího katalogu HACS je
+potřeba tyto údaje doplnit a příslušné kontroly zapnout.
 
 Úplný technický popis a odkazy na dokumentaci jsou v [anglickém návodu](README.md).
 Zdrojový kód je pod licencí MIT.

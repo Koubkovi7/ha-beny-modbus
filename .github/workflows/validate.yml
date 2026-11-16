@@ -26,13 +26,16 @@ jobs:
         run: python tools/build_package.py
 
   hacs:
+    name: HACS custom repository
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main
         with:
           category: integration
-          # Custom repository; catalog submission and branding are separate.
-          ignore: topics brands
+          # Validate custom-repository installation, not catalog publication.
+          # Description/topics are GitHub settings and brands require a separate
+          # submission. None of these action-only checks runs during installation.
+          ignore: description topics brands
 
   hassfest:
     runs-on: ubuntu-latest

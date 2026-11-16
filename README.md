@@ -135,9 +135,12 @@ or the HA runtime. A read-only probe is available from a computer on the LAN:
 python tools/probe.py --host YOUR_GATEWAY_IP --port 502 --transport tcp
 ```
 
-GitHub Actions are configured for the protocol tests, package checks, hassfest
-and HACS validation. Remote checks can run only after publication. Catalog-only
-branding and topic checks are excluded from the custom-repository HACS job.
+GitHub Actions run the protocol tests, package checks, hassfest and HACS
+custom-repository validation. The HACS job excludes the action-only description,
+topics and brands checks; these do not run during custom-repository installation.
+Before submitting to the default HACS catalog, add a GitHub repository description
+(for example, "Local Home Assistant control of BENY Smart EV chargers over Modbus"),
+set relevant topics, provide the required branding and enable those checks.
 
 ## References
 
