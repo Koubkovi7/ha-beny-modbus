@@ -6,7 +6,7 @@ Vlastní integrace pro jednozásuvkové wallboxy BENY Smart BCP-...-L přes
 převodník RS485–Ethernet, navržená pro BCP-AT2N-L podle protokolu BENY v3.8.
 DLB box není potřeba. Nejde o oficiální produkt BENY.
 
-**Verze 0.1.4.** K dispozici je 95 simulačních testů protokolu a ovládání.
+**Verze 0.1.5.** K dispozici je 102 simulačních testů protokolu a ovládání.
 Instalace v běžícím HA a komunikace se skutečným wallboxem ještě vyžadují
 ověření. Určeno pro Home Assistant Core 2026.10.0 a novější.
 
@@ -155,3 +155,11 @@ nepravidelně; samotná hláška ale neurčuje příčinu. Při neúspěchu obou
 pošlete celý detail a nastavení převodníku: sériovou linku, TCP a pokročilé
 volby Modbus. Před změnou mapy registrů prověřte souběžný Modbus program,
 cache / automatické dotazování převodníku a spojení RS485.
+
+Od verze 0.1.5 obsahuje chybná hlavička skutečně přijaté bajty a očekávané
+hodnoty. Při zapnutém ladicím logování se zapisují také odeslané rámce (TX)
+a přijaté hlavičky/odpovědi (RX). Pro chybu při přidání obvykle stačí celý
+detail z formuláře; pro výpadky za běhu zapněte ladicí logování integrace,
+zopakujte problém a logování vypněte, aby HA nabídl stažení logu.
+Jde o rozšíření diagnostiky, nikoli potvrzenou opravu výpadků. Před sdílením
+log zkontrolujte; obsahuje i hodnoty přečtených registrů.

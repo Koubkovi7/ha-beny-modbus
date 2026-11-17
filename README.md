@@ -7,8 +7,8 @@ RS485-to-Ethernet gateway. Designed around the BCP-AT2N-L and BENY RS485 Modbus
 protocol v3.8. No BENY DLB box is required. This is an independent community
 integration, not an official BENY product.
 
-**Version 0.1.4 — initial hardware validation pending.** The protocol/control
-suite has 95 simulated tests. This does not validate installation in Home
+**Version 0.1.5 — initial hardware validation pending.** The protocol/control
+suite has 102 simulated tests. This does not validate installation in Home
 Assistant or communication with a physical charger. Requires Home Assistant
 Core 2026.10.0 or newer; no additional Python packages.
 
@@ -186,3 +186,11 @@ intermittent; this does not establish the underlying cause. If both read attempt
 still fail, collect the complete error and the gateway's serial, TCP and advanced
 Modbus settings. Check for another Modbus client, storage/automatic-query mode,
 and RS485 connectivity before changing the charger register map.
+
+From version 0.1.5, invalid-header errors include the actual received bytes and
+expected fields. Integration debug logging also records transmitted frames (TX)
+and received headers/bodies (RX). For setup failures, share the full form error.
+For runtime failures, enable integration debug logging, reproduce the failure,
+then disable logging to download the log. This is diagnostic instrumentation,
+not a confirmed fix for connection failures. Review logs before sharing them;
+they include the values read from device registers.

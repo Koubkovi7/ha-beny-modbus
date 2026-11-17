@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.5 - 2026-11-17
+
+- Include the received header bytes and expected address/function in RTU errors;
+  show received and expected MBAP fields for invalid Modbus TCP headers.
+- Include the invalid RTU byte count or CRC frame in the error details.
+- Log transmitted frames and received headers/bodies at DEBUG level, including
+  malformed headers before rejecting them. This helps diagnose transport mode
+  mismatches, unexpected data and incorrect replies.
+- Cover wrong address/function, TCP bytes on an RTU connection and unexpected
+  leading bytes; verify malformed replies close the connection without retries.
+- Keep request timing, polling, validation and single-attempt writes unchanged.
+  This is a diagnostic release, not a confirmed fix for physical communication.
+
 ## 0.1.4 - 2026-11-16
 
 - Restore a 1-second settling delay after every new TCP connection and the

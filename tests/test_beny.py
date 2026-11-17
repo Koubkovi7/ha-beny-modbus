@@ -34,6 +34,7 @@ class Simulator:
         self.drop_reads_after_write = 0
         self.connections = 0
         self.ready_delay = 0
+        self.raw_response = None
 
     async def open(self):
         self.server = await asyncio.start_server(self.handle, "127.0.0.1", 0)
@@ -120,6 +121,8 @@ class Simulator:
                     if self.bad_crc:
                         output = output[:-1] + bytes([output[-1] ^ 0xFF])
                         self.bad_crc = False
+                if self.raw_response is not None:
+                    output, self.raw_response = self.raw_response, None
                 if self.fragment:
                     for byte in output:
                         writer.write(bytes([byte]))
@@ -508,10 +511,49 @@ class DeviceTests:
 
     async def test_wrong_unit_rejected_then_reconnect(self):
         self.sim.bad_unit = True
-        with self.assertRaises(BenyError):
+        with self.assertRaises(BenyError) as error:
             await self.client.read(4, 0)
+        message = str(error.exception)
+        if self.transport == "tcp":
+            self.assertIn("received [00 01 00 00 00 05 02]", message)
+            self.assertIn("expected transaction 1, protocol 0, length 2..254, unit 1", message)
+        else:
+            self.assertIn("received [02 04] (unit 2, function 0x04)", message)
+            self.assertIn("expected unit 1, function 0x04 or 0x84", message)
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertIsNone(self.client._writer)
+        self.assertFalse(self.sim.writes)
         self.assertEqual(await self.client.read(4, 0), [3])
         self.assertEqual(self.sim.connections, 2)
+
+    async def test_debug_logs_show_sent_and_received_bytes(self):
+        with self.assertLogs("library.protocol", level="DEBUG") as logs:
+            self.assertEqual(await self.client.read(4, 0), [3])
+        text = "\n".join(logs.output)
+        request_pdu = bytes.fromhex("04 00 00 00 01")
+        if self.transport == "tcp":
+            expected_tx = struct.pack(">HHHB", 1, 0, 6, 1) + request_pdu
+            self.assertIn("RX TCP header 00 01 00 00 00 05 01", text)
+            self.assertIn("RX TCP PDU 04 02 00 03", text)
+        else:
+            expected_tx = b"\x01" + request_pdu
+            expected_tx += struct.pack("<H", crc16(expected_tx))
+            self.assertIn("RX RTU header 01 04", text)
+            self.assertIn("RX RTU frame 01 04 02 00 03", text)
+        self.assertIn(f"TX {expected_tx.hex(' ')}", text)
+        self.assertIn("FC04 register 0x0000", text)
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertFalse(self.sim.writes)
+
+    async def test_bad_write_header_reports_bytes_without_repeating_write(self):
+        self.sim.bad_unit = True
+        with self.assertRaises(WriteUncertain) as error:
+            await self.client.write(0x201, 1)
+        self.assertIn("received [", str(error.exception))
+        self.assertIn("write outcome unknown", str(error.exception))
+        self.assertEqual(self.sim.requests, [(16, 0x201, 1)])
+        self.assertEqual(self.sim.writes, [(0x201, 1)])
+        self.assertIsNone(self.client._writer)
 
     async def test_fragmented_reply(self):
         self.sim.fragment = True
@@ -543,6 +585,34 @@ class DeviceTests:
 
 
 class RtuTests(DeviceTests, unittest.IsolatedAsyncioTestCase):
+    async def test_wrong_function_reports_actual_header(self):
+        response = bytes.fromhex("01 03 02 00 03")
+        self.sim.raw_response = response + struct.pack("<H", crc16(response))
+        with self.assertRaisesRegex(
+            BenyError, r"received \[01 03\].*expected unit 1, function 0x04 or 0x84"
+        ):
+            await self.client.read(4, 0)
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertIsNone(self.client._writer)
+        self.assertFalse(self.sim.writes)
+
+    async def test_tcp_reply_on_rtu_connection_reports_prefix(self):
+        self.sim.raw_response = bytes.fromhex("00 01 00 00 00 05 01 04 02 00 03")
+        with self.assertRaisesRegex(BenyError, r"received \[00 01\].*unit 0, function 0x01"):
+            await self.client.read(4, 0)
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertIsNone(self.client._writer)
+        self.assertFalse(self.sim.writes)
+
+    async def test_unexpected_prefix_is_not_silently_discarded(self):
+        response = bytes.fromhex("01 04 02 00 03")
+        self.sim.raw_response = b"Hi" + response + struct.pack("<H", crc16(response))
+        with self.assertRaisesRegex(BenyError, r"received \[48 69\]"):
+            await self.client.read(4, 0)
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertIsNone(self.client._writer)
+        self.assertFalse(self.sim.writes)
+
     async def test_bad_crc_rejected(self):
         self.sim.bad_crc = True
         with self.assertRaises(BenyError):
@@ -555,8 +625,12 @@ class TcpTests(DeviceTests, unittest.IsolatedAsyncioTestCase):
 
     async def test_wrong_transaction_rejected(self):
         self.sim.bad_tid = True
-        with self.assertRaises(BenyError):
+        with self.assertRaises(BenyError) as error:
             await self.client.read(4, 0)
+        self.assertIn("received [00 02 00 00 00 05 01]", str(error.exception))
+        self.assertIn("expected transaction 1", str(error.exception))
+        self.assertEqual(self.sim.requests, [(4, 0, 1)])
+        self.assertIsNone(self.client._writer)
 
 
 if __name__ == "__main__":

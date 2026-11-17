@@ -135,34 +135,52 @@ class ModbusClient:
                     else:
                         frame = bytes([self.unit]) + pdu
                         frame += struct.pack("<H", crc16(frame))
+                    _LOGGER.debug("%s: TX %s", request, frame.hex(" "))
                     attempted = True
                     self._writer.write(frame)
                     await self._writer.drain()
                     phase = "waiting for Modbus response"
                     if self.transport == "tcp":
                         header = await self._reader.readexactly(7)
+                        _LOGGER.debug("%s: RX TCP header %s", request, header.hex(" "))
                         tid, protocol, length, unit = struct.unpack(">HHHB", header)
                         if (tid != self._tid or protocol != 0 or unit != self.unit
                                 or not 2 <= length <= 254):
-                            raise BenyError("Invalid Modbus TCP header")
+                            raise BenyError(
+                                f"Invalid Modbus TCP header: received [{header.hex(' ')}] "
+                                f"(transaction {tid}, protocol {protocol}, length {length}, unit {unit}); "
+                                f"expected transaction {self._tid}, protocol 0, length 2..254, unit {self.unit}"
+                            )
                         reply = await self._reader.readexactly(length - 1)
+                        _LOGGER.debug("%s: RX TCP PDU %s", request, reply.hex(" "))
                     else:
                         header = await self._reader.readexactly(2)
+                        _LOGGER.debug("%s: RX RTU header %s", request, header.hex(" "))
                         unit, function = header
                         if unit != self.unit or function not in (pdu[0], pdu[0] | 0x80):
-                            raise BenyError("Unexpected RTU address or function")
+                            raise BenyError(
+                                f"Unexpected RTU address or function: received [{header.hex(' ')}] "
+                                f"(unit {unit}, function 0x{function:02X}); expected unit {self.unit}, "
+                                f"function 0x{pdu[0]:02X} or 0x{pdu[0] | 0x80:02X}"
+                            )
                         if function & 0x80:
                             tail = await self._reader.readexactly(3)
                         elif function in (3, 4):
                             count_byte = await self._reader.readexactly(1)
                             if not 2 <= count_byte[0] <= 250 or count_byte[0] % 2:
-                                raise BenyError("Invalid RTU byte count")
+                                raise BenyError(
+                                    f"Invalid RTU byte count: received 0x{count_byte[0]:02X}; "
+                                    "expected an even number in 2..250"
+                                )
                             tail = count_byte + await self._reader.readexactly(count_byte[0] + 2)
                         else:
                             tail = await self._reader.readexactly(6)
                         frame = header + tail
+                        _LOGGER.debug("%s: RX RTU frame %s", request, frame.hex(" "))
                         if crc16(frame[:-2]) != struct.unpack("<H", frame[-2:])[0]:
-                            raise BenyError("RTU CRC mismatch")
+                            raise BenyError(
+                                f"RTU CRC mismatch: received [{frame.hex(' ')}]"
+                            )
                         reply = frame[1:-2]
                     if reply[0] == pdu[0] | 0x80:
                         if len(reply) != 2:
