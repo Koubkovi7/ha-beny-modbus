@@ -140,6 +140,9 @@
       },
       "current_l3": {
         "name": "Proud L3"
+      },
+      "estimated_power": {
+        "name": "Příkon (odhad)"
       }
     }
   }

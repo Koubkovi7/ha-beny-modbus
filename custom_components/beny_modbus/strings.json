@@ -140,6 +140,9 @@
       },
       "current_l3": {
         "name": "Current L3"
+      },
+      "estimated_power": {
+        "name": "Estimated power"
       }
     }
   }

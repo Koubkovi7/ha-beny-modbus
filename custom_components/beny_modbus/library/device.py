@@ -32,6 +32,14 @@ class Snapshot:
     enabled: bool
     permanent_limit: int
 
+    @property
+    def estimated_power_w(self) -> float:
+        """Estimate AC input power at unity power factor from measured U and I."""
+        return round(sum(
+            voltage * current
+            for voltage, current in zip(self.voltages, self.currents, strict=True)
+        ), 1)
+
 
 class BenyDevice:
     def __init__(self, client, max_current=6, control_enabled=True, clock=time.monotonic):

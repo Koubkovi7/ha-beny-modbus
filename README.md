@@ -7,8 +7,8 @@ RS485-to-Ethernet gateway. Designed around the BCP-AT2N-L and BENY RS485 Modbus
 protocol v3.8. No BENY DLB box is required. This is an independent community
 integration, not an official BENY product.
 
-**Version 0.1.5 — initial hardware validation pending.** The protocol/control
-suite has 102 simulated tests. This does not validate installation in Home
+**Version 0.1.6 — initial hardware validation pending.** The protocol/control
+suite has 104 simulated tests. This does not validate installation in Home
 Assistant or communication with a physical charger. Requires Home Assistant
 Core 2026.10.0 or newer; no additional Python packages.
 
@@ -106,6 +106,24 @@ The earlier contactor-clicking cause was not confirmed by measurement. These
 measures prevent repeated software START commands, not every possible cause.
 This release has no tariff automation or dynamic load balancing. The charger
 watchdog is read only: stopping on loss of HA is not guaranteed or hardware tested.
+
+## Total estimated power
+
+The **Estimated power** sensor in W calculates
+`U_L1 × I_L1 + U_L2 × I_L2 + U_L3 × I_L3` from the measured voltage and current
+of each phase. It uses actual phase currents, not the configured current limit;
+unused phases contribute zero. Single-phase and two-phase charging are supported.
+Update the integration and restart Home Assistant to add the sensor automatically.
+
+This is an estimate of active AC input power assuming a power factor of 1
+(`assumed_power_factor: 1.0`). Without that assumption, the calculation gives
+the sum of phase apparent powers in VA. It does not measure power delivered to
+the battery or guarantee inclusion of the wallbox's own electronics consumption.
+Accurate active power requires a suitable meter or measured phase power factors.
+
+The sensor reuses the existing snapshot without additional Modbus requests.
+A failed update makes it unavailable with the other measurements; missing values
+are not replaced with zero.
 
 ## First device check
 

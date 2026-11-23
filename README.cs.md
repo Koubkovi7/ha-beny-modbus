@@ -6,7 +6,7 @@ Vlastní integrace pro jednozásuvkové wallboxy BENY Smart BCP-...-L přes
 převodník RS485–Ethernet, navržená pro BCP-AT2N-L podle protokolu BENY v3.8.
 DLB box není potřeba. Nejde o oficiální produkt BENY.
 
-**Verze 0.1.5.** K dispozici je 102 simulačních testů protokolu a ovládání.
+**Verze 0.1.6.** K dispozici je 104 simulačních testů protokolu a ovládání.
 Instalace v běžícím HA a komunikace se skutečným wallboxem ještě vyžadují
 ověření. Určeno pro Home Assistant Core 2026.10.0 a novější.
 
@@ -96,6 +96,23 @@ DLB. Timeout wallboxu se pouze čte; zastavení při výpadku HA není garantova
 Ověřte cache a autonomní čtení převodníku: mohou vracet staré hodnoty nebo
 udržovat komunikaci s wallboxem i po výpadku HA. BENY DLB box nepřipojujte
 současně ke stejné řídicí lince RS485.
+
+## Celkový příkon
+
+Senzor **Příkon (odhad)** v jednotkách W počítá
+`U_L1 × I_L1 + U_L2 × I_L2 + U_L3 × I_L3` z naměřeného napětí a proudu
+jednotlivých fází. Používá skutečné proudy, nikoli nastavený proudový limit;
+nevyužité fáze s nulovým proudem přispívají nulou. Funguje i při nabíjení na
+jedné nebo dvou fázích. Po aktualizaci integrace a restartu HA se přidá automaticky.
+
+Jde o odhad činného příkonu při předpokládaném účiníku 1
+(`assumed_power_factor: 1.0`). Bez tohoto předpokladu výpočet vyjadřuje součet
+zdánlivých výkonů fází ve VA. Neměří výkon do baterie ani nezaručuje zahrnutí
+vlastní spotřeby elektroniky wallboxu. Přesný činný příkon vyžaduje vhodný
+elektroměr nebo měření účiníku jednotlivých fází.
+
+Senzor využívá již načtená data a nepřidává Modbus požadavky. Při neúspěšném
+načtení je nedostupný stejně jako ostatní měření; chybějící hodnoty nenahrazuje nulou.
 
 ## První test
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.6 - 2026-11-23
+
+- Add an enabled-by-default Estimated power sensor (Czech: Příkon (odhad)).
+  Sum measured voltage times measured current per phase, in W with measurement
+  state class; expose the assumed unity power factor as an attribute.
+- Reuse the existing snapshot without additional Modbus requests. Preserve
+  coordinator availability so failed updates do not appear as zero power.
+- Document the distinction between this estimate, apparent power and measured
+  active power; support single-phase, two-phase, three-phase and idle readings.
+- Test phase pairing, scaling, rounding, zero currents and independence from
+  charging authorization/current limits over TCP and RTU transports.
+
 ## 0.1.5 - 2026-11-17
 
 - Include the received header bytes and expected address/function in RTU errors;

@@ -373,6 +373,29 @@ class DeviceTests:
             await self.device.poll()
         self.assertFalse(self.sim.writes)
 
+    async def test_estimated_power_uses_measured_phase_pairs_without_extra_requests(self):
+        # Authorization and the current limit must not replace measured currents.
+        self.sim.holding[0x201] = 0
+        self.sim.holding[0x200] = 6
+        cases = (
+            ((2320, 2330, 2320), (160, 160, 160), 11152.0),
+            ((2320, 2330, 2320), (160, 160, 0), 7440.0),
+            ((2320, 2330, 2320), (0, 60, 0), 1398.0),
+            ((2320, 2330, 2320), (0, 0, 0), 0.0),
+            ((2312, 2299, 2301), (1, 63, 159), 5130.1),
+        )
+        for voltages, currents, expected in cases:
+            with self.subTest(voltages=voltages, currents=currents):
+                self.sim.inputs.update(zip(range(0x101, 0x104), voltages))
+                self.sim.inputs.update(zip(range(0x104, 0x107), currents))
+                self.sim.requests.clear()
+                snapshot = await self.device.poll()
+                self.assertEqual(snapshot.estimated_power_w, expected)
+                self.assertEqual(snapshot.estimated_power_w, expected)
+                self.assertEqual(len(self.sim.requests), 13)
+                self.assertTrue(all(fn in (3, 4) for fn, _, _ in self.sim.requests))
+                self.assertFalse(self.sim.writes)
+
     async def test_read_only_setup_poll_and_watchdog(self):
         await self.device.identify()
         await self.device.read_watchdog()

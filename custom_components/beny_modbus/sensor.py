@@ -1,6 +1,9 @@
 """BENY measured values, enums, and raw firmware diagnostics."""
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.const import EntityCategory, UnitOfElectricCurrent, UnitOfElectricPotential, UnitOfEnergy, UnitOfTime
+from homeassistant.const import (
+    EntityCategory, UnitOfElectricCurrent, UnitOfElectricPotential, UnitOfEnergy,
+    UnitOfPower, UnitOfTime,
+)
 from .entity import BenyEntity
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -14,6 +17,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
                        SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, SensorStateClass.MEASUREMENT),
         ])
     entities.extend([
+        BenySensor(c, "estimated_power", lambda d: d.estimated_power_w,
+                   SensorDeviceClass.POWER, UnitOfPower.WATT, SensorStateClass.MEASUREMENT),
         # Session counter resets on reconnect. No lifetime/Energy dashboard claim.
         BenySensor(c, "session_energy", lambda d: d.energy_kwh,
                    SensorDeviceClass.ENERGY, UnitOfEnergy.KILO_WATT_HOUR),
@@ -41,6 +46,9 @@ class BenySensor(BenyEntity, SensorEntity):
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
         self._attr_options = options
+        if key == "estimated_power":
+            self._attr_suggested_display_precision = 1
+            self._attr_extra_state_attributes = {"assumed_power_factor": 1.0}
         if diagnostic:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         if key == "last_communication":
